@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subir y procesar video</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>Subir y procesar video</h1>
+    <input type="file" id="videoInput" accept="video/mkv">
+    <button onclick="uploadVideo()">Subir</button>
+    <p id="status"></p>
+    
+    <h2>Proceso de conversión</h2>
+    <p id="processingFile"></p>
+    <progress id="progressBar" value="0" max="100" style="width: 100%;"></progress>
+    
+    <h2>Resultado</h2>
+    <video id="videoPlayer" controls style="display:none; width: 100%;">
+        <track id="subtitleTrack" kind="subtitles" srclang="es" label="Subtítulos" default>
+    </video>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
