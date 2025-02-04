@@ -1,5 +1,6 @@
 const socket = io();
 
+// Función para subir un video
 async function uploadVideo() {
     const fileInput = document.getElementById("videoInput");
     const status = document.getElementById("status");
@@ -28,50 +29,56 @@ async function uploadVideo() {
     }
 }
 
-// Función para verificar el estado del procesamiento en Redis
+// Función para cargar la lista de videos ya convertidos
+async function loadVideoList() {
+    try {
+        const response = await fetch("/videos-list");
+        const data = await response.json();
+
+        const videoList = document.getElementById("videoList");
+        videoList.innerHTML = ""; // Limpiar lista antes de actualizar
+
+        data.forEach(video => {
+            addVideoLink(video.filename, video.url);
+        });
+    } catch (error) {
+        console.error("Error al obtener la lista de videos:", error);
+    }
+}
+
+// Función para agregar un enlace de video a la lista
+function addVideoLink(filename, url) {
+    const videoList = document.getElementById("videoList");
+
+    const listItem = document.createElement("li");
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.textContent = filename;
+    link.target = "_blank";
+
+    listItem.appendChild(link);
+    videoList.appendChild(listItem);
+}
+
+// Función para verificar el estado del procesamiento al recargar la página
 async function checkProcessingStatus() {
     try {
-        const response = await fetch("/status");
+        const response = await fetch("/status"); // Llamamos al backend
         const data = await response.json();
 
         if (data.processing) {
             document.getElementById("processingFile").textContent = "Procesando: " + data.filename;
             document.getElementById("progressBar").value = data.progress;
-
-            // Si ya está al 100%, mostrar como completado
-            if (data.progress >= 100) {
-                finalizeProcessing(data.filename);
-            }
+        } else {
+            document.getElementById("processingFile").textContent = ""; // Limpiar si no hay archivo en proceso
+            document.getElementById("progressBar").value = 0;
         }
     } catch (error) {
         console.error("Error al obtener el estado del procesamiento:", error);
     }
 }
 
-// Función para finalizar el procesamiento
-function finalizeProcessing(filename) {
-    document.getElementById("processingFile").textContent = "Conversión completada: " + filename;
-    document.getElementById("progressBar").value = 100;
-
-    const videoPlayer = document.getElementById("videoPlayer");
-    const subtitleTrack = document.getElementById("subtitleTrack");
-
-    videoPlayer.src = `/videos/${filename}`;
-    videoPlayer.style.display = "block";
-
-    fetch(`/subtitles/${filename.replace(".mp4", ".vtt")}`)
-        .then((res) => {
-            if (res.ok) {
-                subtitleTrack.src = `/subtitles/${filename.replace(".mp4", ".vtt")}`;
-                subtitleTrack.mode = "showing";
-            } else {
-                subtitleTrack.removeAttribute("src");
-            }
-        })
-        .catch(() => {
-            subtitleTrack.removeAttribute("src");
-        });
-}
 
 // Eventos de conversión en tiempo real
 socket.on("processing", (data) => {
@@ -83,9 +90,18 @@ socket.on("progress", (data) => {
     document.getElementById("progressBar").value = data.percent;
 });
 
-socket.on("completed", (data) => {
-    finalizeProcessing(data.filename);
+socket.on("completed", async (data) => {
+    document.getElementById("processingFile").textContent = "Conversión completada: " + data.filename;
+    document.getElementById("progressBar").value = 100;
+
+    // Agregar el nuevo video a la lista
+    addVideoLink(data.filename, data.url);
+    // Verificar si hay otro archivo en proceso
+    await checkProcessingStatus();
 });
 
-// Ejecutar al cargar la página para restaurar el estado
-window.onload = checkProcessingStatus;
+// Cargar lista de videos y estado de procesamiento al inicio
+window.onload = async function () {
+    await loadVideoList();
+    await checkProcessingStatus(); // Verificar si hay un archivo en proceso
+};

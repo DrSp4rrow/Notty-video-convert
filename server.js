@@ -25,9 +25,20 @@ const videoQueue = new Queue("video-processing", { connection: redisConnection }
 const storage = multer.diskStorage({
   destination: "uploads/",
   filename: (req, file, cb) => {
-    cb(null, file.originalname); // Mantener el nombre original
+    // Obtener la extensión del archivo
+    const ext = path.extname(file.originalname);
+    
+    // Remover caracteres no permitidos y reemplazar espacios por guiones
+    const cleanName = path.basename(file.originalname, ext) // Nombre sin extensión
+      .replace(/[^a-zA-Z0-9 ]/g, "") // Eliminar caracteres especiales
+      .replace(/\s+/g, "-") // Reemplazar espacios con guiones
+      .toLowerCase(); // Convertir todo a minúsculas
+
+    const finalName = cleanName + ext; // Reconstruir con la extensión
+    cb(null, finalName);
   },
 });
+
 
 const upload = multer({ storage });
 
@@ -35,6 +46,20 @@ app.use(cors());
 app.use(express.static("public"));
 app.use("/videos", express.static("processed"));
 app.use("/subtitles", express.static("subtitles"));
+
+// Ruta para obtener lista de videos ya convertidos
+app.get("/videos-list", (req, res) => {
+  fs.readdir("processed", (err, files) => {
+    if (err) return res.status(500).json({ error: "Error al leer los archivos" });
+
+    const videoLinks = files.map(file => ({
+      filename: file,
+      url: `/videos/${file}`,
+    }));
+
+    res.json(videoLinks);
+  });
+});
 
 // Ruta para subir video
 app.post("/upload", upload.single("video"), async (req, res) => {
