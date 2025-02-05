@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Subir y Convertir Archivo</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Subir archivo MKV</h1>
+    <form id="uploadForm">
+      <input type="file" id="fileInput" accept=".mkv" />
+      <button type="button" id="uploadButton">Subir</button>
+    </form>
+    <div class="progress-container">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+    <p id="status"></p>
+
+    <h2>Conversión a MP4</h2>
+    <div class="progress-container">
+      <div class="progress-bar" id="conversionProgressBar"></div>
+    </div>
+    <p id="conversionStatus"></p>
+  </div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
