@@ -1,7 +1,11 @@
 const socket = io();
+const fileInput = document.getElementById("fileInput");
+const uploadButton = document.getElementById("uploadButton");
+const uploadProgressBar = document.getElementById("uploadProgressBar");
+const processingProgressBar = document.getElementById("processingProgressBar");
+const statusMessage = document.getElementById("statusMessage");
 
-document.getElementById("uploadButton").addEventListener("click", () => {
-  const fileInput = document.getElementById("fileInput");
+uploadButton.addEventListener("click", () => {
   const file = fileInput.files[0];
 
   if (!file) {
@@ -15,43 +19,62 @@ document.getElementById("uploadButton").addEventListener("click", () => {
   const xhr = new XMLHttpRequest();
   xhr.open("POST", "/upload", true);
 
-  // Actualizar la barra de progreso de subida
   xhr.upload.onprogress = (event) => {
     if (event.lengthComputable) {
-      const percentComplete = (event.loaded / event.total) * 100;
-      const progressBar = document.getElementById("progressBar");
-      progressBar.style.width = percentComplete + "%";
+      const percentComplete = Math.round((event.loaded / event.total) * 100);
+      uploadProgressBar.style.width = `${percentComplete}%`;
+      uploadProgressBar.textContent = `${percentComplete}%`;
     }
   };
 
-  // Manejar la respuesta del servidor
   xhr.onload = () => {
-    const statusText = document.getElementById("status");
     if (xhr.status === 200) {
-      statusText.textContent = "Archivo subido con éxito.";
+      statusMessage.textContent = "Archivo subido correctamente. Procesando...";
     } else {
-      statusText.textContent = "Error al subir el archivo.";
+      statusMessage.textContent = "Error al subir el archivo.";
     }
-    document.getElementById("progressBar").style.width = "0%";
+  };
+
+  xhr.onerror = () => {
+    statusMessage.textContent = "Error de red durante la subida.";
   };
 
   xhr.send(formData);
 });
 
-// Escuchar actualizaciones de conversión
-socket.on("conversionProgress", (data) => {
-  const conversionProgressBar = document.getElementById("conversionProgressBar");
-  const progress = parseInt(data.frame) % 100; // Muestra el progreso relativo
-  conversionProgressBar.style.width = progress + "%";
+// Escuchar eventos de conversión en tiempo real
+socket.on("fileStateUpdate", ({ fileName, state }) => {
+  statusMessage.textContent = `Archivo: ${fileName} - Estado: ${state.status} (${state.progress}%)`;
+
+  if (state.status === "procesando") {
+    processingProgressBar.style.width = `${state.progress}%`;
+    processingProgressBar.textContent = `${state.progress}%`;
+  }
+
+  if (state.status === "completado") {
+    processingProgressBar.style.width = "100%";
+    processingProgressBar.textContent = "100%";
+  }
 });
 
-socket.on("conversionComplete", (data) => {
-  const conversionStatus = document.getElementById("conversionStatus");
-  conversionStatus.textContent = `Conversión completada: ${data.fileName}`;
-  document.getElementById("conversionProgressBar").style.width = "0%";
-});
+// Obtener el estado inicial al cargar la página
+window.addEventListener("load", () => {
+  fetch("/file-states")
+    .then((response) => response.json())
+    .then((states) => {
+      Object.keys(states).forEach((fileName) => {
+        const state = states[fileName];
+        statusMessage.textContent = `Archivo: ${fileName} - Estado: ${state.status} (${state.progress}%)`;
 
-socket.on("conversionError", (data) => {
-  const conversionStatus = document.getElementById("conversionStatus");
-  conversionStatus.textContent = `Error al convertir: ${data.fileName}`;
+        if (state.status === "procesando") {
+          processingProgressBar.style.width = `${state.progress}%`;
+          processingProgressBar.textContent = `${state.progress}%`;
+        }
+
+        if (state.status === "completado") {
+          processingProgressBar.style.width = "100%";
+          processingProgressBar.textContent = "100%";
+        }
+      });
+    });
 });
