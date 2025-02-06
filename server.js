@@ -5,6 +5,7 @@ const path = require('path');
 const ffmpeg = require('fluent-ffmpeg');
 const { Server } = require('socket.io');
 const http = require('http');
+const unidecode = require('unidecode'); // Importar la librería para normalizar caracteres
 
 const app = express();
 const server = http.createServer(app);
@@ -21,7 +22,13 @@ if (!fs.existsSync(outputFolder)) fs.mkdirSync(outputFolder);
 const storage = multer.diskStorage({
     destination: uploadFolder,
     filename: (req, file, cb) => {
-        cb(null, file.originalname);
+        // Transliterar el nombre del archivo (eliminar tildes y caracteres especiales)
+        let normalizedFilename = unidecode(file.originalname)
+            .toLowerCase() // Convertir a minúsculas
+            .replace(/\s+/g, '-') // Reemplazar espacios por guiones
+            .replace(/[^a-z0-9\-.]/g, ''); // Eliminar caracteres especiales excepto - y .
+
+        cb(null, normalizedFilename);
     }
 });
 const upload = multer({ storage });
@@ -29,17 +36,19 @@ const upload = multer({ storage });
 // Cola de trabajos
 let queue = [];
 let isProcessing = false;
+let currentProcessingFile = null;  // Archivo en proceso
 
 // Enviar estado actual al conectarse un cliente
 io.on('connection', (socket) => {
     socket.emit('queueUpdate', queue);  // Envía la cola actual al cliente
+    socket.emit('currentProcessing', currentProcessingFile); // Envía el archivo en proceso
 });
 
 // Ruta para subir archivo
 app.post('/upload', upload.single('video'), (req, res) => {
     if (!req.file) return res.status(400).send('No se subió ningún archivo.');
 
-    queue.push(req.file.path);
+    queue.push(req.file.filename);
     io.emit('queueUpdate', queue);
     
     if (!isProcessing) processQueue();
@@ -51,13 +60,17 @@ app.post('/upload', upload.single('video'), (req, res) => {
 function processQueue() {
     if (queue.length === 0) {
         isProcessing = false;
+        currentProcessingFile = null;
+        io.emit('currentProcessing', null); // Notificar que no hay archivo en proceso
         return;
     }
 
     isProcessing = true;
-    const filePath = queue.shift();
+    currentProcessingFile = queue.shift(); // Extrae el primer archivo de la cola
     io.emit('queueUpdate', queue);
+    io.emit('currentProcessing', currentProcessingFile); // Notifica a los clientes
 
+    const filePath = path.join(uploadFolder, currentProcessingFile);
     const outputFileName = path.basename(filePath, path.extname(filePath)) + '.mp4';
     const outputPath = path.join(outputFolder, outputFileName);
 
@@ -78,10 +91,12 @@ function processQueue() {
         .on('end', () => {
             io.emit('conversionComplete', outputFileName);
             fs.unlinkSync(filePath);
-            processQueue();
+            isProcessing = false;
+            processQueue(); // Procesar el siguiente archivo en la cola
         })
         .on('error', (err) => {
             console.error('Error en conversión:', err);
+            isProcessing = false;
             processQueue();
         })
         .run();
@@ -89,6 +104,7 @@ function processQueue() {
 
 // Servir archivos estáticos
 app.use(express.static('public'));
+app.use('/output', express.static(outputFolder));
 
 // Obtener lista de archivos convertidos
 app.get('/videos', (req, res) => {
