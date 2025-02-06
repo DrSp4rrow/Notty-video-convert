@@ -1,80 +1,73 @@
 const socket = io();
-const fileInput = document.getElementById("fileInput");
-const uploadButton = document.getElementById("uploadButton");
-const uploadProgressBar = document.getElementById("uploadProgressBar");
-const processingProgressBar = document.getElementById("processingProgressBar");
-const statusMessage = document.getElementById("statusMessage");
 
-uploadButton.addEventListener("click", () => {
-  const file = fileInput.files[0];
+// Subir archivo
+document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fileInput = document.getElementById('fileInput').files[0];
+    if (!fileInput) return alert('Seleccione un archivo MKV');
 
-  if (!file) {
-    alert("Por favor, selecciona un archivo.");
-    return;
-  }
+    const formData = new FormData();
+    formData.append('video', fileInput);
 
-  const formData = new FormData();
-  formData.append("file", file);
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/upload', true);
 
-  const xhr = new XMLHttpRequest();
-  xhr.open("POST", "/upload", true);
-
-  xhr.upload.onprogress = (event) => {
-    if (event.lengthComputable) {
-      const percentComplete = Math.round((event.loaded / event.total) * 100);
-      uploadProgressBar.style.width = `${percentComplete}%`;
-      uploadProgressBar.textContent = `${percentComplete}%`;
-    }
-  };
-
-  xhr.onload = () => {
-    if (xhr.status === 200) {
-      statusMessage.textContent = "Archivo subido correctamente. Procesando...";
-    } else {
-      statusMessage.textContent = "Error al subir el archivo.";
-    }
-  };
-
-  xhr.onerror = () => {
-    statusMessage.textContent = "Error de red durante la subida.";
-  };
-
-  xhr.send(formData);
-});
-
-// Escuchar eventos de conversión en tiempo real
-socket.on("fileStateUpdate", ({ fileName, state }) => {
-  statusMessage.textContent = `Archivo: ${fileName} - Estado: ${state.status} (${state.progress}%)`;
-
-  if (state.status === "procesando") {
-    processingProgressBar.style.width = `${state.progress}%`;
-    processingProgressBar.textContent = `${state.progress}%`;
-  }
-
-  if (state.status === "completado") {
-    processingProgressBar.style.width = "100%";
-    processingProgressBar.textContent = "100%";
-  }
-});
-
-// Obtener el estado inicial al cargar la página
-window.addEventListener("load", () => {
-  fetch("/file-states")
-    .then((response) => response.json())
-    .then((states) => {
-      Object.keys(states).forEach((fileName) => {
-        const state = states[fileName];
-        statusMessage.textContent = `Archivo: ${fileName} - Estado: ${state.status} (${state.progress}%)`;
-
-        if (state.status === "procesando") {
-          processingProgressBar.style.width = `${state.progress}%`;
-          processingProgressBar.textContent = `${state.progress}%`;
+    // Actualizar progreso de subida
+    xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+            const percent = Math.floor((event.loaded / event.total) * 100);
+            document.getElementById('uploadProgressBar').style.width = `${percent}%`;
         }
+    };
 
-        if (state.status === "completado") {
-          processingProgressBar.style.width = "100%";
-          processingProgressBar.textContent = "100%";
+    // Cuando finaliza la subida
+    xhr.onload = () => {
+        if (xhr.status === 200) {
+            document.getElementById('uploadProgressBar').style.width = '100%';
+            setTimeout(() => {
+                document.getElementById('uploadProgressBar').style.width = '0%';
+            }, 1000);
+        } else {
+            alert('Error al subir archivo.');
         }
-      });
-    });
+    };
+
+    xhr.send(formData);
 });
+
+
+// Actualizar progreso de conversión
+socket.on('conversionProgress', ({ file, progress }) => {
+    let bar = document.getElementById(file);
+    if (!bar) {
+        bar = document.createElement('div');
+        bar.id = file;
+        bar.classList.add('progress-bar');
+        document.getElementById('progressContainer').appendChild(bar);
+    }
+    bar.style.width = `${progress}%`;
+});
+
+// Agregar video convertido a la lista
+socket.on('conversionComplete', (filename) => {
+    const listItem = document.createElement('li');
+    listItem.innerHTML = `<a href="/output/${filename}" target="_blank">${filename}</a>`;
+    document.getElementById('videoList').appendChild(listItem);
+});
+
+// Actualizar lista de cola
+socket.on('queueUpdate', (queue) => {
+    const queueList = document.getElementById('queueList');
+    queueList.innerHTML = queue.map(file => `<li>${file}</li>`).join('');
+});
+// Pedir la cola actual al recargar la página
+socket.emit('requestQueue');
+
+// Cargar lista de videos al inicio
+async function loadVideos() {
+    const res = await fetch('/videos');
+    const files = await res.json();
+    const videoList = document.getElementById('videoList');
+    videoList.innerHTML = files.map(file => `<li><a href="/output/${file}" target="_blank">${file}</a></li>`).join('');
+}
+loadVideos();

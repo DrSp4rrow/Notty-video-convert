@@ -1,29 +1,30 @@
 body {
-    font-family: Arial, sans-serif;
-    text-align: center;
-    margin: 20px;
-  }
-  
-  .progress-container {
-    width: 80%;
-    background: #e0e0e0;
-    border-radius: 4px;
-    margin: 10px auto;
-    overflow: hidden;
-  }
-  
-  .progress-bar {
-    height: 25px;
-    width: 0;
-    background: #4caf50;
-    color: white;
-    text-align: center;
-    line-height: 25px;
-    transition: width 0.2s;
-  }
-  
-  #statusMessage {
-    margin-top: 20px;
-    font-weight: bold;
-  }
-  
+  font-family: Arial, sans-serif;
+  text-align: center;
+}
+#progressContainer {
+  width: 50%;
+  margin: auto;
+  background: #ddd;
+  height: 25px;
+  position: relative;
+}
+.progress-bar {
+  background: green;
+  height: 100%;
+  width: 0%;
+  transition: width 0.5s;
+}
+#uploadProgressContainer {
+  width: 50%;
+  margin: auto;
+  background: #ddd;
+  height: 25px;
+  position: relative;
+}
+#uploadProgressBar {
+  background: blue;
+  height: 100%;
+  width: 0%;
+  transition: width 0.5s;
+}

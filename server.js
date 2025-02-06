@@ -1,88 +1,101 @@
-const express = require("express");
-const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
-const { Server } = require("socket.io");
-const http = require("http");
-const ffmpeg = require("fluent-ffmpeg");
+const express = require('express');
+const multer = require('multer');
+const fs = require('fs');
+const path = require('path');
+const ffmpeg = require('fluent-ffmpeg');
+const { Server } = require('socket.io');
+const http = require('http');
 
-// Configuración del servidor
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-const uploadDir = path.join(__dirname, "uploads");
-const outputDir = path.join(__dirname, "output");
+const uploadFolder = path.join(__dirname, 'uploads');
+const outputFolder = path.join(__dirname, 'output');
 
 // Crear carpetas si no existen
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
-if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir);
+if (!fs.existsSync(uploadFolder)) fs.mkdirSync(uploadFolder);
+if (!fs.existsSync(outputFolder)) fs.mkdirSync(outputFolder);
 
-// Estado de los archivos en memoria
-const fileStates = {}; // Estructura: { fileName: { status: "subido" | "procesando" | "completado", progress: 0 } }
-
-// Configuración de Multer
+// Configuración de Multer (para subir archivos)
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => {
-    const normalized = file.originalname
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-zA-Z0-9.\-]/g, "-")
-      .replace(/\s+/g, "-");
-    cb(null, normalized);
-  },
+    destination: uploadFolder,
+    filename: (req, file, cb) => {
+        cb(null, file.originalname);
+    }
 });
 const upload = multer({ storage });
 
-// Middleware y rutas estáticas
-app.use(express.static(path.join(__dirname, "public")));
+// Cola de trabajos
+let queue = [];
+let isProcessing = false;
 
-// Ruta para subir archivos
-app.post("/upload", upload.single("file"), (req, res) => {
-  if (!req.file) return res.status(400).send("No se subió ningún archivo.");
-
-  const fileName = req.file.filename;
-  const filePath = path.join(uploadDir, fileName);
-  const outputFilePath = path.join(outputDir, fileName.replace(".mkv", ".mp4"));
-
-  // Guardar estado inicial del archivo
-  fileStates[fileName] = { status: "subido", progress: 0 };
-  io.emit("fileStateUpdate", { fileName, state: fileStates[fileName] });
-
-  // Procesar el archivo con ffmpeg
-  fileStates[fileName].status = "procesando";
-  io.emit("fileStateUpdate", { fileName, state: fileStates[fileName] });
-
-  ffmpeg(filePath)
-    .videoCodec("libx264")
-    .audioCodec("aac")
-    .outputOptions(["-strict experimental", "-movflags +faststart"])
-    .on("progress", (progress) => {
-      const percent = Math.round(progress.percent);
-      fileStates[fileName].progress = percent;
-      io.emit("fileStateUpdate", { fileName, state: fileStates[fileName] });
-    })
-    .on("end", () => {
-      fileStates[fileName].status = "completado";
-      fileStates[fileName].progress = 100;
-      io.emit("fileStateUpdate", { fileName, state: fileStates[fileName] });
-    })
-    .on("error", (err) => {
-      console.error(err);
-      fileStates[fileName].status = "error";
-      io.emit("fileStateUpdate", { fileName, state: fileStates[fileName] });
-    })
-    .save(outputFilePath);
-
-  res.status(200).send("Archivo subido y en proceso.");
+// Enviar estado actual al conectarse un cliente
+io.on('connection', (socket) => {
+    socket.emit('queueUpdate', queue);  // Envía la cola actual al cliente
 });
 
-// Ruta para obtener el estado actual de todos los archivos
-app.get("/file-states", (req, res) => {
-  res.json(fileStates);
+// Ruta para subir archivo
+app.post('/upload', upload.single('video'), (req, res) => {
+    if (!req.file) return res.status(400).send('No se subió ningún archivo.');
+
+    queue.push(req.file.path);
+    io.emit('queueUpdate', queue);
+    
+    if (!isProcessing) processQueue();
+
+    res.json({ message: 'Archivo subido y en cola.', filename: req.file.filename });
 });
 
-// Iniciar servidor
-const PORT = 3000;
-server.listen(PORT, () => console.log(`Servidor corriendo en http://localhost:${PORT}`));
+// Procesar cola de conversión
+function processQueue() {
+    if (queue.length === 0) {
+        isProcessing = false;
+        return;
+    }
+
+    isProcessing = true;
+    const filePath = queue.shift();
+    io.emit('queueUpdate', queue);
+
+    const outputFileName = path.basename(filePath, path.extname(filePath)) + '.mp4';
+    const outputPath = path.join(outputFolder, outputFileName);
+
+    ffmpeg(filePath)
+        .output(outputPath)
+        .outputOptions([
+            '-c:v libx264',
+            '-crf 23',
+            '-preset fast',
+            '-c:a aac',
+            '-b:a 192k'
+        ])
+        .on('start', (cmd) => console.log('Ejecutando:', cmd))
+
+        .on('progress', (progress) => {
+            io.emit('conversionProgress', { file: outputFileName, progress: Math.floor(progress.percent) });
+        })
+        .on('end', () => {
+            io.emit('conversionComplete', outputFileName);
+            fs.unlinkSync(filePath);
+            processQueue();
+        })
+        .on('error', (err) => {
+            console.error('Error en conversión:', err);
+            processQueue();
+        })
+        .run();
+}
+
+// Servir archivos estáticos
+app.use(express.static('public'));
+
+// Obtener lista de archivos convertidos
+app.get('/videos', (req, res) => {
+    fs.readdir(outputFolder, (err, files) => {
+        if (err) return res.status(500).send('Error al listar archivos.');
+        res.json(files);
+    });
+});
+
+server.listen(3000, () => console.log('Servidor en http://localhost:3000'));
