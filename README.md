@@ -95,19 +95,6 @@ conversor-mkv-a-mp4/
 
 ---
 
-## Comandos Principales
-
-- Iniciar el servidor:
-  ```bash
-  node server.js
-  ```
-- Instalar dependencias:
-  ```bash
-  npm install
-  ```
-
----
-
 ## Contribuciones
 
 ¡Las contribuciones son bienvenidas! Si encuentras un error o tienes una idea para mejorar el proyecto, no dudes en abrir un [issue](https://github.com/DrSp4rrow/Notty-video-convert/issues) o enviar un [pull request](https://github.com/DrSp4rrow/Notty-video-convert/pulls).
