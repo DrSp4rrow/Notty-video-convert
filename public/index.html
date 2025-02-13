@@ -7,28 +7,29 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <h1>Conversor MKV a MP4</h1>
+    <div class="container">
+      <h1>Conversor MKV a MP4</h1>
 
-    <form id="uploadForm">
-      <input type="file" id="fileInput" accept=".mkv" required />
-      <button type="submit">Subir y Convertir</button>
-    </form>
-    <h2>Progreso de Subida</h2>
-    <div id="uploadProgressContainer">
-      <div id="uploadProgressBar" class="progress-bar"></div>
-    </div>
+      <form id="uploadForm" class="upload-form">
+        <input type="file" id="fileInput" accept=".mkv" required />
+        <button type="submit">Subir y Convertir</button>
+      </form>
 
-    <h2>Progreso de Conversión</h2>
-    <div>
+      <h2>Progreso de Subida</h2>
+      <div id="uploadProgressContainer" class="progress-container">
+        <div id="uploadProgressBar" class="progress-bar"></div>
+      </div>
+
+      <h2>Progreso de Conversión</h2>
       <h3>Archivo procesándose: <span id="currentFile">Ninguno</span></h3>
+      <div id="progressContainer" class="progress-container"></div>
+
+      <h2>Archivos en Cola</h2>
+      <ul id="queueList" class="file-list"></ul>
+
+      <h2>Videos Convertidos</h2>
+      <ul id="videoList" class="file-list"></ul>
     </div>
-    <div id="progressContainer"></div>
-
-    <h2>Archivos en Cola</h2>
-    <ul id="queueList"></ul>
-
-    <h2>Videos Convertidos</h2>
-    <ul id="videoList"></ul>
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="script.js"></script>
