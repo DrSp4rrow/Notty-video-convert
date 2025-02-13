@@ -13,7 +13,7 @@ Se implementa un sistema de cola que procesa los videos en orden de subida y act
 
 ## Captura de Pantalla
 
-![Captura de Pantalla](ruta/a/tu/captura-de-pantalla.png)
+![Captura de Pantalla](https://i.imgur.com/dtNuoxA.png)
 
 ---
 
